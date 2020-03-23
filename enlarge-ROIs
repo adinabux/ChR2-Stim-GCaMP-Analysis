@@ -1,0 +1,24 @@
+rois = roiManager("count"); 
+name=1;
+
+for (i=0;i<rois;i++){ 
+        roiManager("select", 0); 
+        roiManager("rename",name+i); 
+        run("Enlarge...", "enlarge=1 pixel");
+		roiManager("Add");
+		roiManager("select", 0); 
+		roiManager("Delete");
+}	
+
+for (i=0;i<rois;i++){ 
+        roiManager("select", i); 
+        roiManager("rename",name+i); 
+}	
+
+roiManager("UseNames","true"); 
+for (i=0;i<rois;i++){ 
+        roiManager("select", i); 
+        roiManager("Update"); 
+} 
+roiManager("Show All"); 
+roiManager("Show All with labels");
