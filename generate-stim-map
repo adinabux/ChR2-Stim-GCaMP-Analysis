@@ -1,0 +1,160 @@
+// This macro projects l frames before and after a stim and creates averages 
+// of the difference between the images. 
+//
+// Last updated on 2.24.20
+
+
+title=getTitle();
+title1 = replace(title, ".xml", ""); 
+//title1 = replace(title, ".tif", ""); 
+
+
+
+dir = getDirectory("image"); //puts it in the image's folder
+//dir = "F:\Adina\20198-5-14 VTA21 LHb\\";	
+//PC
+//dir = "/Volumes/AB Malinow/00 2P/2019-4-1 VTA14/test//"; 	//mac
+
+Stack.setSlice(1);
+
+Stack.getDimensions(width,height,channels,slices,frames);
+
+run("Z Project...", "projection=[Max Intensity] all");
+titlem = "MAX_" + title1 + " with stim";
+saveAs("TIFF", dir+titlem);
+close();
+
+selectWindow(title);
+//run("Delete Slice", "delete=slice");
+run("Z Project...", "projection=[Max Intensity] all");
+title2=getTitle();
+saveAs("TIFF", dir+title2);
+close();
+
+selectWindow(title);
+run("Z Project...", "projection=[Average Intensity] all");
+title3=getTitle();
+saveAs("TIFF", dir+title3);
+close();
+
+if (channels>1) {
+	selectWindow(title);
+	run("Delete Slice", "delete=channel"); 		// if there is a red channel
+	}
+
+selectWindow(title);
+//run("Add Slice", "add=slice prepend");
+run("Hyperstack to Stack");
+saveAs("TIFF", dir+title1);
+
+//comment out the following to prevent stackreg registration
+
+run("StackReg", "transformation=Translation");
+saveAs("TIFF", dir+ File.separator + "reg-"+title1);
+run("Z Project...", "projection=[Max Intensity] all");
+saveAs("TIFF", dir+"MAX_reg-"+title1);
+close();
+
+
+
+dir = getDirectory("image"); 	//puts it in the image's folder 
+tif=getTitle();
+tif1 = replace(tif, ".tif", "");
+
+Stack.getDimensions(width,height,channels,slices,frames);
+
+l = 10; 							//		set the number of frames you would like projected
+c = 3; 							//		put number of sequences in a cycle
+row=frames/c;	
+f = slices;							
+//f = 55; 						//		put number of frames per time point
+	
+for (i=1; i<=500; i++) {  	
+	
+	n = i*slices;						
+
+	if (n + l < slices * frames) {
+	
+		selectWindow(tif);
+		run("Z Project...", "start="+(n-l+1)+" stop="+(n)+" projection=[Max Intensity]"); 		//Max project l frames pre image 
+		pre=getTitle();
+		selectWindow(tif);
+			//Max project l frames post stim image for stacks with NO STIM (DELETED):
+//		run("Z Project...", "start="+(n+1)+" stop="+(n+l)+" projection=[Max Intensity]");
+			//Max project l frames post stim image for stacks WITH STIM (either blank frame or left in):
+		run("Z Project...", "start="+(n+2)+" stop="+(n+l+1)+" projection=[Max Intensity]"); 
+		post=getTitle();
+		imageCalculator("Subtract create 32-bit", post ,pre);
+		Image=getTitle();
+		selectWindow(post);
+		close();
+		selectWindow(pre);
+		close();
+
+		print ("rows=" +row);
+		print ("slices =" +slices);
+		print ("n =" +n);
+		print ("i =" +i);
+		print ("frames =" +frames);
+
+	}
+	
+	else {
+		//selectWindow(tif);
+		//close();
+		print ("else");
+		run("Images to Stack");
+			saveAs("TIFF", dir + File.separator + tif1 + "-" + l + " frames-dif.tif");
+		
+		stack=getTitle();
+		stack1 = replace(stack, ".tif", ""); 
+		
+		run("Make Montage...", "columns=" +c+ " rows=" +row+ " scale=1");			// 
+		run("Green Fire Blue");	
+		run("Gaussian Blur...", "sigma=1");
+				saveAs("TIFF", dir + stack1 + "-Montage.tif");
+		close();
+
+		if (row>1) {
+
+				s=nSlices;
+				Stack.setSlice(s);
+				run("Add Slice");
+				run("Deinterleave", "how="+c+" keep");
+
+					for (i = 1; i <= c; i++) { 
+					selectWindow(stack + " #" + i );
+					run("Z Project...", "projection=[Average Intensity]");
+					selectWindow(stack + " #" + i );
+					close();
+					}
+
+					run("Images to Stack");
+						saveAs("TIFF", dir + stack1 + "-aves.tif");
+					run("Make Montage...", "columns=" +c+ " rows=1 scale=1");
+					run("Green Fire Blue");	
+					run("Gaussian Blur...", "sigma=1");
+						setFont("SansSerif", 10);
+						if (c>3) {
+						//	makeText("none / 1 stim / 5 stim / none", 30, 10); // 4 cycles
+							makeText("1x 0.85 V / 1x 2.5 V / 5x 0.85V / none", 30, 10); // 4 cycles
+						}
+						else {
+						//	makeText("1 stim / 5 stim / none", 30, 10); // 3 cycles
+							makeText("1x 0.85 V / 1x 2.5 V / none", 30, 10); // 3 cycles
+						}
+					run("Add Selection...", "stroke=yellow fill=#660000ff new");
+					run("Select None");
+						saveAs("TIFF", dir + stack1 + "-ave-montage.tif");
+
+					selectWindow(stack);
+					close();
+					//selectWindow("Stack");
+					//close();
+					print("break");
+					break;
+					}
+		break;
+		}
+print ("done");
+}
