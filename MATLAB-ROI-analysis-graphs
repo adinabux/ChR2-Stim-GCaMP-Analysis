@@ -1,0 +1,544 @@
+
+% This macro takes ROI measurements from GCaMP movies that were stimulated
+% and plots and measures the responses to stims. It also calculates
+% statistical significance of the responses and outputs a table of the
+% peak height, area under the curve and p value. 
+% BEFORE STARTING, create MultiMeasure variable and paste in the data
+
+% Written in MATLAB R2015a
+
+% Last edited: 3.2.2020 - changed lists created to col, changes ylims
+% Last edited: 3.19.2020 - changed numbers to "frames" added criteria for
+% counting stims so pre has to be below 1.1, changed AOC to count whole
+% graph
+% 3.22.20 - peak height is a subtraction of height pre stim, AOC subtracted
+% from pre too. Darker lines occur later in the experiment
+
+
+clearvars -except MultiMeasure
+[row,col]=size(MultiMeasure);
+
+%   MultiMeasure(:,1) = [];         % For a PC: Delete column 1, the cell # column
+
+       for cell = 1:col;                 
+%          for cell = 1:1;                
+hold off 
+
+%   CHANGE EVERY TIME:
+
+movie = ['40-017'];
+
+n = 0:1:59;                    %     change the total # cycles-1 (t-1 in hyperstacks in ImageJ)
+
+filename = [movie '-' num2str(cell) '.jpg'];  %   set file name
+
+c = (55*n)+1;                  %     MAKE SURE THIS IS CORRECT!! # frames per cycle (z in ImageJ)
+
+%%
+
+frames = 38;                   %   frames to plot before and after the stim
+time = 0:0.372009:4000;        %   frame time (now 372 ms per image)
+
+C = frames*time(1,2)/60;
+
+% cyc = input('input # of sequences per loop:');
+cyc = 4;
+% prompt = ('input # of sequences per loop:');
+% cyc = input(prompt);fly 11
+
+%   These are the first frames of each sequence for THREE cycle experiments:
+if cyc == 3;
+    no_stim =  c(1:3:end);      
+    one_stim = c(2:3:end);
+    five_stim= c(3:3:end);
+end
+%   These are the first frames of each sequence for THREE cycle experiments:
+if cyc == 2;
+    no_stim =  c(1:2:end);      
+    one_stim = c(2:2:end);
+    five_stim= c(2:2:end);  % set to be the same as one_stim
+end
+    
+% %   These are the first frames of each sequence for FOUR cycle experiments (with 2 controls):
+% if cyc == 4;
+%     no_stim1 =  c(1:4:end);  
+%     no_stim2 =  c(2:4:end); 
+%     no_stim = [no_stim1 no_stim2];
+%     no_stim = sort(no_stim);
+%     one_stim = c(3:4:end);
+%     five_stim= c(4:4:end);
+% end
+
+%   These are the first frames of each sequence for FOUR cycle experiments (3 different stims):
+if cyc == 4;
+    no_stim =  c(1:4:end);  
+    one_stim =  c(2:4:end); 
+    high_stim = c(3:4:end);  % used to be 5 stim
+    five_stim = c(4:4:end);
+end
+
+trace = MultiMeasure(:,cell);
+trace(trace==0) = NaN;        
+trace_base = nanmean(trace(1:50,:));   % divide by first 50 frames to normalize to 1
+trace_adj = (trace/trace_base);
+
+%% Split the frames into type of stim:
+
+for m = 2:length(no_stim);  % no stim
+    none(:,m) = trace_adj([no_stim(m)-frames:no_stim(m)+frames]);
+end
+    none_adj = mean(none(1:frames,:));                  % normalize by first 20 frames
+    none = bsxfun(@rdivide, none, none_adj);
+    none(none==0) = NaN;
+%     none(:,1) = [];
+    
+for m = 1:length(one_stim);                     % one stim
+    one(:,m) = trace_adj([one_stim(m)-frames:one_stim(m)+frames]);
+end
+    one_adj = mean(one(1:frames,:)); 
+    one = bsxfun(@rdivide, one, one_adj);
+    one(one==0) = NaN;
+    one(frames+1,:) = NaN;
+    
+for m = 1:length(high_stim);                     % high stim
+    high(:,m) = trace_adj([high_stim(m)-frames:high_stim(m)+frames]);
+end
+    high_adj = mean(high(1:frames,:)); 
+    high = bsxfun(@rdivide, high, high_adj);
+    high(high==0) = NaN;
+    
+for m = 1:length(five_stim);                     % five stim
+    five(:,m) = trace_adj([five_stim(m)-frames:five_stim(m)+frames]);
+end
+    five(five==0) = NaN;
+    five_adj = mean(five(1:frames,:));
+    five = bsxfun(@rdivide, five, five_adj);
+    five(frames+1,:) = NaN;
+   
+avenone(:,cell)=nanmean(none')';                 % Calculate averages
+aveone(:,cell)=nanmean(one')'; 
+avehigh(:,cell)=nanmean(high')';
+avefive(:,cell)=nanmean(five')';
+
+X = wkeep(time,size(aveone,1),'l'); 
+X=X-(max(X)/2);                               % center of x axis is zero
+
+y1=1;
+
+% AOC0(cell,1) = trapz(X((frames+2):(frames+5)),(avenone((frames+2):(frames+5),cell)-1));             % Calculate area under the curve
+% AOClo(cell,1) = trapz(X((frames+2):(frames+5)),(aveone((frames+2):(frames+5),cell)-1));             % 22:25 only under the first 4 frames = 1.8 seconds
+% AOChi(cell,1) = trapz(X((frames+2):(frames+5)),(avehigh((frames+2):(frames+5),cell)-1));            % 22:33 only under the first 12 frames = 4 seconds
+% AOC5(cell,1) = trapz(X((frames+2):(frames+5)),(avefive((frames+2):(frames+5),cell)-1)); 
+% AOC5(cell,1) = trapz(X((frames+2):(frames+5)),(avefive((frames+2):(frames+5),cell)-1)); 
+
+% Calculate area under the curve after stim for the whole trace until frames
+AOC0(cell,1) = trapz(X((frames+2):(frames*2)),(avenone((frames+2):(frames*2),cell) - mean(avenone(frames-2:frames,cell))));
+AOClo(cell,1) = trapz(X((frames+2):(frames*2)),(aveone((frames+2):(frames*2),cell) - mean(aveone(frames-2:frames,cell))));             
+AOChi(cell,1) = trapz(X((frames+2):(frames*2)),(avehigh((frames+2):(frames*2),cell) - mean(avehigh((frames-2):frames,cell))));           
+AOC5(cell,1) = trapz(X((frames+2):(frames*2)),(avefive((frames+2):(frames*2),cell) - mean(avefive((frames-2):frames,cell)))); 
+
+sdnone(:,cell)=nanstd(none')';                     % Calculate SD
+sdone(:,cell)=std(one')';
+sdhigh(:,cell)=std(high')';
+sdfive(:,cell)=std(five')';
+
+tosem = sqrt((numel(n))/3);                         % Calculate SEM             
+    semnone= bsxfun(@rdivide, sdnone, tosem);        
+    semone= bsxfun(@rdivide, sdone, tosem);
+    semhigh= bsxfun(@rdivide, sdhigh, tosem); 
+    semfive= bsxfun(@rdivide, sdfive, tosem); 
+
+lowone=aveone-semone;              % Calculate upper and lower bound of SD for graph
+hione=aveone+semone;
+lowhigh=avehigh-semhigh;              
+hihigh=avehigh+semhigh;
+lowfive=avefive-semfive;
+hifive=avefive+semfive;
+ 
+%% count responses: column order = 0,1,5 peak height , 1 response?, 5 response?, pvalue1stims, pvalue5stims, pvaluePrePost1stim, pvaluePrePost5stims
+ 
+peak0(cell,1) = max(avenone((frames+2):(frames+6),cell)) - mean(avenone(frames-2:frames,cell));
+peak1lo(cell,1) = max(aveone((frames+2):(frames+6),cell)) - mean(aveone(frames-2:frames,cell));
+peak1hi(cell,1) = max(avehigh((frames+2):(frames+6),cell)) - mean(avehigh((frames-2):frames,cell));
+peak5(cell,1) = max(avefive((frames+2):(frames+6),cell)) - mean(avefive((frames-2):frames,cell)); 
+% cellnum(cell,1)= num2str(cell);
+
+ratio51(cell,1) = peak5(cell,1)/peak1lo(cell,1);
+
+%   if pre stim and post stim change by at least 5% and is higher than no_
+%   stim by 5% & pre is not higher than 1.1
+if peak1lo(cell,1) - peak0(cell,1) > 0.05 && peak1lo(cell,1) > 0.05 && (max(aveone((frames-2):frames,cell))) < 1.1;   
+    response1(cell,1) = 1;                       %    puts a 1 for lo stim over 0.05
+    else
+    response1(cell,1) = 0; 
+end;
+if peak1hi(cell,1) - peak0(cell,1) > 0.05 && peak1hi(cell,1) > 0.05 && (max(avehigh((frames-2):frames,cell))) < 1.1;      
+    responsehi(cell,1) = 1;                      %     puts a 1 for hi stim over 0.05
+    else
+    responsehi(cell,1) = 0; 
+end;
+if peak5(cell,1) - peak0(cell,1) > 0.05 && peak5(cell,1) > 0.05 && (max(avefive((frames-2):frames,cell))) < 1.1;      
+    response5(cell,1) = 1;                       %     puts a 1 for 5 stim over 0.05
+    else
+    response5(cell,1) = 0; 
+end;
+
+[h,ttest01(cell,1)] = ttest(mean(none((frames+2):(frames+8),:)), mean(one((frames+2):(frames+8),:))); % p value respone of no stim & 1 stim
+[h,ttest01hi(cell,1)] = ttest(mean(none((frames+2):(frames+8),:)), mean(high((frames+2):(frames+8),:))); % p value respone of no stim & 5 stims
+[h,ttest05(cell,1)] = ttest(mean(none((frames+2):(frames+8),:)), mean(five((frames+2):(frames+8),:))); % p value respone of no stim & 5 stims
+[h,ttest00(cell,1)] = ttest(mean(none((frames-6):(frames),:)), mean(none((frames+2):(frames+8),:))); % p value pre and post no stims
+[h,ttest11(cell,1)] = ttest(mean(one((frames-6):(frames),:)), mean(one((frames+2):(frames+8),:))); % p value pre and post 1 stim
+[h,ttest55(cell,1)] = ttest(mean(five((frames-6):(frames),:)), mean(five((frames+2):(frames+8),:))); % p value pre and post 5 stims
+[h,ttest11hi(cell,1)] = ttest(mean(high((frames-6):(frames),:)), mean(high((frames+2):(frames+8),:))); % p value pre and post 5 stims
+
+% T=table(responsiveROIlist,peak0,peak1lo,peak1hi,peak5,response1,responsehi,response5,AOC0,AOClo,AOChi,AOC5,ttest01,ttest01hi,ttest05,ttest00,ttest11,ttest11hi,ttest55);
+% writetable(T,movie);
+
+%% plot the boxes with the stims and average traces
+
+figure(cell)
+greys = repmat(linspace(0.9,0.3,(size(one,2)))',1,3);  % darker lines are later
+
+subplot(2,4,5);             %   no stims
+for o=1:size(one,2)
+    p(o) = plot( X, none(:,o));
+    set (p(o),'Color', greys(o,:));
+    hold on
+end    
+    hold on
+plot (X,avenone(:,cell), 'LineWidth', 4, 'Color','k') 
+    title ('no stim');
+    xlim([min(X) max(X)]);
+    highy = max(max(max(five,high)));
+    if isnan(highy);
+        highy = 1;
+    end
+     lowy = min(min(nanmin(five,high)));
+     if isnan(lowy);
+        lowy = 0;
+     end
+    ylim([lowy highy]);
+    ylabel('F / mean F');
+    xlabel('time (s)');
+    set(gca,'fontsize',12);
+
+subplot(2,4,6);              %   lo stim
+for o=1:size(one,2)
+    p(o) = plot( X, one(:,o));
+    set (p(o),'Color', greys(o,:));
+    hold on
+end    
+% plot (X,one)
+    hold on
+plot (X,aveone(:,cell), 'LineWidth', 4, 'Color','k') 
+     title ('lo stim');
+    xlim([min(X) max(X)]);
+      ylim([lowy highy]);  % one stim first
+%     ylim([min(nanmin(one)) max(max(one))]);    % five stims first
+    ylabel('F / mean F');
+    xlabel('time (s)');
+        line('XData', [0 0], 'YData', [lowy highy], 'color', 'c', 'LineWidth', 1);
+    set(gca,'fontsize',12);
+          if ttest01(cell,1) < 0.05;
+              txt = ['p0/1=' num2str(ttest01(cell,1),'%3.1e')];
+             text(X(1,4),highy-0.1,txt,'FontSize',10);
+          end
+          if ttest11(cell,1) < 0.05;
+              txt = ['p1/1=' num2str(ttest11(cell,1),'%3.1e')];
+             text(1,highy-0.1,txt,'FontSize',10);
+          end
+          
+subplot(2,4,7);              %   high stim
+for o=1:size(one,2)
+    p(o) = plot( X, high(:,o));
+    set (p(o),'Color', greys(o,:));
+    hold on
+end    
+% plot (X,high)
+    hold on
+plot (X,avehigh(:,cell), 'LineWidth', 4, 'Color','k') 
+     title ('hi stim');
+    xlim([min(X) max(X)]);
+      ylim([lowy highy]);  % one stim first
+%     ylim([min(nanmin(one)) max(max(one))]);    % five stims first
+    line('XData', [0 0], 'YData', [lowy highy], 'color', 'c', 'LineWidth', 1);
+    ylabel('F / mean F');
+    xlabel('time (s)');
+    set(gca,'fontsize',12);
+          if ttest01hi(cell,1) < 0.05;
+             txt = ['p0/1=' num2str(ttest01(cell,1),'%3.1e')];
+             text(X(1,4),highy-0.1,txt,'FontSize',10);
+          end
+          if ttest11hi(cell,1) < 0.05;
+             txt = ['p1/1=' num2str(ttest11(cell,1),'%3.1e')];
+             text(1,highy-0.1,txt,'FontSize',10);
+          end
+          
+subplot(2,4,8);             %   5 stims
+for o=1:size(one,2)
+    p(o) = plot( X, five(:,o));
+    set (p(o),'Color', greys(o,:));
+    hold on
+end    
+% plot (X,five)
+    hold on
+plot (X,avefive(:,cell), 'LineWidth', 4, 'Color','k') 
+     title ('5 stim');
+%     title ('1 stim');
+    xlim([min(X) max(X)]);
+     ylim([lowy highy]);  % one stim first
+%    ylim([min(nanmin(one)) max(max(one))]);	  % five stims first
+    line('XData', [0 0], 'YData', [lowy highy], 'color', 'c', 'LineWidth', 2);
+    ylabel('F / mean F');
+    xlabel('time (s)');
+    set(gca,'fontsize',12);
+            if (ttest05(cell,1)) < 0.05;
+                 txt = ['p0/5=' num2str(ttest05(cell,1),'%3.1e')];
+                 text(X(1,4),highy-0.1,txt,'FontSize',10);
+            end
+             if ttest55(cell,1) < 0.05;
+                 txt = ['p5/5=' num2str(ttest55(cell,1),'%3.1e')];
+                text(1,highy-0.1,txt,'FontSize',10);
+             end
+
+ %%   plots the whole line scan of one ROI
+ 
+subplot(2,4,1:4);
+
+ ylow = nanmin(trace_adj) - 0.05;
+% yhigh = max(trace_adj) + 0.05;
+% ylow = nanmin(MultiMeasure(:,cell)) - 50;
+% yhigh = max(MultiMeasure(:,cell)) + 50;
+
+trace_adj0 = trace_adj;
+trace_adj0(isnan(trace_adj0))=0;
+A1 = sort(trace_adj0);               %   
+
+yhigh = A1([end-(numel(c)/4)])+ 0.05;
+
+    if isnan(yhigh);
+        yhigh = 1;
+    end
+    if isnan(ylow);
+        ylow = 0;
+    end
+        
+ylim ([ylow yhigh]);
+
+% xcor=60^-1*0.372;
+% col=1:3; num=4; colors=mod(col,num);
+if cyc==3;
+    numcol=repmat(1:3, 1, 50);
+      colors = {'w',[0.9 0.9 0.9],[0.8 0.8 0.8]}; 	% 1 stim first
+%     colors = {'w',[0.7 0.7 0.7],[0.9 0.9 0.9]}; 	% 5 stim first
+end
+
+if cyc==4;
+    numcol=repmat(1:4, 1, 50);
+    colors = {'w',[0.9 0.9 0.9],[0.9 0.9 0.9],[0.8 0.8 0.8]};   
+end
+
+if cyc==2;
+    numcol=repmat(1:2, 1, 50);
+    colors = {'w',[0.9 0.9 0.9]};   
+end
+
+x = (wkeep(time,length(trace_adj),'l'))/60;     %   minutes
+C = c*time(1,2)/60;
+
+for l=1:numel(C);
+%     line('XData', [c(l) c(l)], 'YData', [0 200], 'color', rand(1,3), 'LineWidth', 2+2*mod(l+2,3));
+%       line('XData', [c(l) c(l)], 'YData', [0 200], 'color', colors{numcol(l)}, 'LineWidth', 2+1*mod(l+2,3));
+line('XData', [C(l) C(l)], 'YData', [ylow yhigh], 'color', colors{numcol(l)}, 'LineWidth', numcol(l));
+%     line('XData', [c(l) c(l)], get(hax,'YLim'), 'Color',[1 0 0], 'LineWidth', 0.1+2*mod(l+2,3));
+    hold on
+end
+
+plot(x,trace_adj, 'Color',[0 0 0]);                     %   plot whole trace
+ylabel('F / mean F');
+xlabel('time (min)');
+xlim ([0 max(x)]);
+hold off
+
+set(gcf, 'Position',  [100, 100, 1000, 500])
+title (['cell ', num2str(cell)]);
+
+set(gcf, 'PaperUnits', 'inches', 'PaperPosition', [0 0 10 5]);
+  saveas(gcf,filename)
+ 
+    close(gcf)
+ 
+hold off
+
+end
+hold off
+
+% T=table(peaks);
+% T.Properties.VariableNames = {'0','1','5','1 response?','5 response?','pvalue0to1stim','pvalue0to5stims','pvalue0to5stims','pvaluePrePost1stim','pvaluePrePost5stims'};
+% writetable(T,movie);
+
+% oneresponses = sum(T(:,4))
+% fiveresponses = sum(T(:,5))
+%% Plot all the averages that meet response threshold
+
+    responsivelo = NaN((frames*2+1),col);
+    responsivehi = NaN((frames*2+1),col);
+    responsive5 = NaN((frames*2+1),col);
+    responsiveROIs = zeros(col,1);
+    
+figure
+% clear cell ca
+%     highavey = max(max(max(avefive,aveone)))+max(max(max(semfive,semone)));
+%     lowavey = min(min(min(avefive,aveone)))-max(max(max(semfive,semone)));
+      highavey = max(max(max(avefive,aveone)))+0.09;
+      lowavey = min(min(min(avefive,aveone)))-0.02;
+%       lowavey = 0.5;
+    a=1;
+    b=1;
+    d=1;
+    e=1;
+for cell = 1:col;  
+%      ca{a}=[];
+   subplot(1,3,1);                                                              % low stim
+    if (response1(cell,1)==1 || response5(cell,1)==1 || responsehi(cell,1)==1);
+%       subplot(1,2,1);
+        responsiveROIlist(b,1) = cell;
+        responsivelo(:,b) = aveone(:,cell);     %  array of responses that pass threshold
+        responsiveROIs(cell,1) = 1;
+        b=b+1;
+                ca{a} = ['cell-' num2str(cell)];
+                 a=a+1;
+                 ca{a} = [' '];
+                  a=a+1;
+                     hi1=hione(:,cell)';
+                     hi1(isnan(hi1))=aveone(frames,cell);
+                     lo1=lowone(:,cell)';
+                     lo1(isnan(lo1))=aveone(frames,cell);
+                     xfill = [X fliplr(X)];
+                     yfill = [lo1 fliplr(hi1)];
+                     h = fill(xfill,yfill,'k');
+                     set(h,'facealpha',.09,'edgecolor', 'none');
+                   hold on
+                    line('XData', [0 0], 'YData', [lowavey highavey], 'color', 'c', 'LineWidth', 1);
+                     hold on
+                    plot(X,aveone(:,cell)); 
+                    box on
+                xlim([min(X) max(X)]);
+                 ylim([lowavey highavey]);
+                ylabel('F / mean F');
+                xlabel('time (s)');
+                set(gca,'fontsize',12);
+                title('Mean 1 low stim');
+                 hold on  
+                   
+%                     errorbar(X,aveone(:,cell),sdone(:,cell));
+%                     set(hp, 'facecolor', [1 0.8 0.8], 'edgecolor', 'none');
+%                             if (ttest11(cell,1)) < 0.05;
+%                                  plot(X,aveone(:,cell),'LineWidth',4);
+%                             end
+                     hold on
+    end
+              
+%         var = {{ca},'Location','northwest'};
+%                     legend(ca{:})
+       
+    subplot(1,3,2);                                                         % hi stim
+    if (response1(cell,1)==1 || response5(cell,1)==1 || responsehi(cell,1)==1);
+%              ca{cell} = sprintf('Curve #%d', cell);
+%                 ca{cell} = ['cell-' num2str(cell)];
+%                   errorbar(X,avefive(:,cell),sdfive(:,cell));
+        
+                    hi3=hihigh(:,cell)';
+                    hi3(isnan(hi3))=avehigh(frames,cell);           % set the stim frame to the one b4
+                   
+                    lo3=lowhigh(:,cell)';
+                    lo3(isnan(lo3))=avehigh(frames,cell);
+                    
+                    xfill3 = [X fliplr(X)];
+                    yfill3 = [lo3 fliplr(hi3)];
+                 hold on
+                    line('XData', [0 0], 'YData', [lowavey highavey], 'color', 'c', 'LineWidth', 1);
+                 h= fill(xfill3,yfill3,'k');
+                 set(h,'facealpha',.09,'edgecolor', 'none')
+                 
+                  hold on
+                  plot(X,avehigh(:,cell));
+                     box on
+%                 if (ttest55(cell,1)) < 0.05;
+%                    plot(X,avefive(:,cell),'LineWidth',4);
+%                 end 
+        responsivehi(:,d) = avehigh(:,cell);
+        d=d+1;
+                xlim([min(X) max(X)]);
+                ylim([lowavey highavey]);
+%                 ylabel('F / mean F');
+                xlabel('time (s)');
+                set(gca,'fontsize',12);
+                title('Mean 1 hi stim');
+         set(gcf, 'Position',  [100, 100, 1000, 400])
+         hold on
+    end
+
+     
+    subplot(1,3,3);                                                           % five stims     
+    if (response1(cell,1)==1 || response5(cell,1)==1 || responsehi(cell,1)==1);
+
+%              ca{cell} = sprintf('Curve #%d', cell);
+%                 ca{cell} = ['cell-' num2str(cell)];
+%                   errorbar(X,avefive(:,cell),sdfive(:,cell));
+                    hi2=hifive(:,cell)';
+                    hi2(isnan(hi2))=avefive(frames,cell);
+                    lo2=lowfive(:,cell)';
+                    lo2(isnan(lo2))=avefive(frames,cell);
+                    xfill2 = [X fliplr(X)];
+                    yfill2 = [lo2 fliplr(hi2)];
+                    hold on
+                    line('XData', [0 0], 'YData', [lowavey highavey], 'color', 'c', 'LineWidth', 3);
+                 h= fill(xfill2,yfill2,'k');
+                 set(h,'facealpha',.09,'edgecolor', 'none')
+                  hold on
+                  plot(X,avefive(:,cell));
+                     box on
+%                 if (ttest55(cell,1)) < 0.05;
+%                    plot(X,avefive(:,cell),'LineWidth',4);
+%                 end    
+        responsive5(:,e) = avefive(:,cell);
+        e=e+1;
+                xlim([min(X) max(X)]);
+                ylim([lowavey highavey]);
+%                 ylabel('F / mean F');
+                xlabel('time (s)');
+                set(gca,'fontsize',12);
+                title('Mean 5 stims');
+ %        set(gcf, 'Position',  [100, 100, 1000, 400])
+         hold on
+    end
+  
+end
+    subplot(1,3,1);                                         % plot the average of the averages
+    totalaveone = nanmean(responsivelo')';
+%      plot (X,totalaveone, 'LineWidth', 5, 'Color','w')   
+    plot (X,totalaveone, 'LineWidth', 5, 'Color',[0.2 0.4 0.6])
+    
+    subplot(1,3,2); 
+    totalavehi = nanmean(responsivehi')';
+     plot (X,totalavehi, 'LineWidth', 5, 'Color',[0.2 0.4 0.6])  
+%          plot (X,totalaveone, 'LineWidth', 5, 'Color','w') 
+    
+    subplot(1,3,3);  
+    totalave5 = nanmean(responsive5')';
+     plot (X,totalave5, 'LineWidth', 5, 'Color',[0.2 0.4 0.6]) 
+%  plot (X,totalaveone, 'LineWidth', 5, 'Color','w') 
+    
+T=table(responsiveROIs,peak0,peak1lo,peak1hi,peak5,response1,responsehi,response5,ratio51,AOC0,AOClo,AOChi,AOC5,ttest01,ttest01hi,ttest05,ttest00,ttest11,ttest11hi,ttest55);
+writetable(T,movie);
+
+%    set(gcf, legend(ca, 'Location' ,'northwest'));
+%%
+set(gcf, 'PaperUnits', 'inches', 'PaperPosition', [0 0 10 2.5]);
+filenameave = [movie '-aves'  '.jpg'];  %   set file name
+ saveas(gcf,filenameave)
+ 
+sum(response1)
+sum(responsehi)
+sum(response5)
